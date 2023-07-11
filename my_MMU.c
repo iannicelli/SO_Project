@@ -73,6 +73,21 @@ char *MMU_readByte(MMU *mmu, int pos)
     
 }
 
+void MMU_print_page_table(MMU *mmu)
+{
+
+    printf("Page table:\n");
+    for (int i = 0; i < PAGE_TABLE_SIZE; i++)
+    {
+        printf("%.4d) %c%c%c%c >\t%d\n", i,
+               mmu->page_table[i].flags & FLAG_VALID ? 'V' : '-',
+               mmu->page_table[i].flags & FLAG_UNSWAPPABLE ? 'U' : '-',
+               mmu->page_table[i].flags & FLAG_READ_BIT ? 'R' : '-',
+               mmu->page_table[i].flags & FLAG_WRITE_BIT ? 'W' : '-',
+               mmu->page_table[i].frame_number);
+    }
+}
+
 
 void prova(){
     MMU mmu;
@@ -80,6 +95,8 @@ void prova(){
     
     printf("%d\n", mmu.free_frame);
     //fin qui tutto ok
+
+    MMU_print_page_table(&mmu);
 
 }
 
