@@ -68,6 +68,31 @@ void MMU_init(MMU *mmu, char *file_name)
     mmu->page_table[1].frame_number = 1;
 }
 
+void MMU_exception(MMU *mmu, int pos){
+    printf("Page fault at position %d\n", pos);
+
+    int page_to_swap_in = pos / PAGE_SIZE;
+
+    //controllo se lo swap è non necessario
+    if(mmu->free_frame != 0){
+        uint8_t busy_frames = FRAMES_NUMBER - mmu->free_frame;
+        uint8_t frame_to_allocate = busy_frames;  
+        mmu->page_table[page_to_swap_in].frame_number = frame_to_allocate;
+        mmu->page_table[page_to_swap_in].flags = FLAG_VALID | FLAG_CREATED;
+        mmu->free_frame--;
+        printf("\tAllocated new frame %d to page %d\n", frame_to_allocate, page_to_swap_in);
+    }
+    else{
+        //bisogna trovare la pagina da swappare
+        //Controllare se la pagina è stata modificata in scrittura
+        //Se è stata modificata, scrivere la pagina sullo swap
+
+        
+    }
+
+
+}
+
 void MMU_writeByte(MMU *mmu, int pos, char c)
 {
     if (pos >= VIRTUAL_MEMORY_SIZE)
@@ -79,20 +104,23 @@ void MMU_writeByte(MMU *mmu, int pos, char c)
     int page_number = pos / PAGE_SIZE;
     //printf("Writing %c at position %d on page %d\n", c, pos, page_number);
 
-    // aggiungere controllo pagine riservate
-
-    if (mmu->page_table[page_number].flags & FLAG_VALID)
+    if (mmu->page_table[page_number].flags & FLAG_RESERVED)
     {
-       int frame_number = mmu->page_table[page_number].frame_number;
-
-        mmu->page_table[page_number].flags |= FLAG_WRITE_BIT;
-
-        mmu->physical_memory[frame_number * PAGE_SIZE + pos % PAGE_SIZE] = c;
+        fprintf(stderr, "Cannot write to reserved page\n");
+        exit(1);
     }
 
-    else {
-        //printf("Page fault\n");
+    if (!(mmu->page_table[page_number].flags & FLAG_VALID))
+    {
+       MMU_exception(mmu, pos);
     }
+
+    int frame_number = mmu->page_table[page_number].frame_number;
+
+    mmu->page_table[page_number].flags |= FLAG_WRITE_BIT;
+    mmu->page_table[page_number].flags |= FLAG_SECOND_CHANCE_BIT;
+
+    mmu->physical_memory[frame_number * PAGE_SIZE + pos % PAGE_SIZE] = c;
 
 }
 
@@ -123,7 +151,7 @@ void prova(){
     MMU mmu;
     MMU_init(&mmu, "prova.bin");
     
-    for (size_t i = 2 ; i < VIRTUAL_MEMORY_SIZE; i++)
+    for (size_t i = 3 ; i < VIRTUAL_MEMORY_SIZE; i++)
     {
         MMU_writeByte(&mmu, i, 'a');
     }
