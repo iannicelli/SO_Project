@@ -68,6 +68,20 @@ void MMU_init(MMU *mmu, char *file_name)
     mmu->page_table[1].frame_number = 1;
 }
 
+int find_page_to_swap_out(MMU *mmu){
+    int page_to_swap_out = mmu->last_page_swapped_out;
+     
+    while(1){
+        //dobbiamo controllare che non sia unswappable
+        //dobbiamo controllare che non abbia il second chance bit a 1
+        //dobbiamo controllare che sia valida
+    }
+
+    mmu->last_page_swapped_out = (page_to_swap_out + 1) % PAGE_TABLE_SIZE;
+    return page_to_swap_out;
+    
+}
+
 void MMU_exception(MMU *mmu, int pos){
     printf("Page fault at position %d\n", pos);
 
@@ -83,11 +97,12 @@ void MMU_exception(MMU *mmu, int pos){
         printf("\tAllocated new frame %d to page %d\n", frame_to_allocate, page_to_swap_in);
     }
     else{
-        //bisogna trovare la pagina da swappare
+        
+        int page_to_swap_out = find_page_to_swap_out(mmu);
         //Controllare se la pagina è stata modificata in scrittura
         //Se è stata modificata, scrivere la pagina sullo swap
 
-        
+
     }
 
 
@@ -150,8 +165,8 @@ void MMU_print_page_table(MMU *mmu)
 void prova(){
     MMU mmu;
     MMU_init(&mmu, "prova.bin");
-    
-    for (size_t i = 3 ; i < VIRTUAL_MEMORY_SIZE; i++)
+
+    for (size_t i = PAGE_SIZE * 2; i < VIRTUAL_MEMORY_SIZE; i++)
     {
         MMU_writeByte(&mmu, i, 'a');
     }
