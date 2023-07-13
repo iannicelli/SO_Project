@@ -72,9 +72,25 @@ int find_page_to_swap_out(MMU *mmu){
     int page_to_swap_out = mmu->last_page_swapped_out;
      
     while(1){
-        //dobbiamo controllare che non sia unswappable
-        //dobbiamo controllare che non abbia il second chance bit a 1
-        //dobbiamo controllare che sia valida
+
+        if (mmu->page_table[page_to_swap_out].flags & FLAG_UNSWAPPABLE)
+        {
+            printf("\tSkipping unswappable page %d\n", page_to_swap_out);
+            // pass
+        }
+        else if (mmu->page_table[page_to_swap_out].flags & FLAG_SECOND_CHANCE_BIT)
+        {
+            printf("\tSkipping page %d with second chance bit\n", page_to_swap_out);
+            mmu->page_table[page_to_swap_out].flags &= ~FLAG_SECOND_CHANCE_BIT;
+        }
+        else if (mmu->page_table[page_to_swap_out].flags & FLAG_VALID)
+        {
+            printf("\tFound page %d to swap out\n", page_to_swap_out);
+            // Ho trovato la pagina da swappare
+            break;
+        }
+
+        page_to_swap_out = (page_to_swap_out + 1) % PAGE_TABLE_SIZE;
     }
 
     mmu->last_page_swapped_out = (page_to_swap_out + 1) % PAGE_TABLE_SIZE;
