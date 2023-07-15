@@ -193,7 +193,27 @@ void MMU_writeByte(MMU *mmu, int pos, char c)
 
 char *MMU_readByte(MMU *mmu, int pos)
 {
-    
+    if (pos >= VIRTUAL_MEMORY_SIZE)
+    {
+        fprintf(stderr, "Cannot write to position %d, out of bounds\n", pos);
+        exit(1);
+    }
+
+    int page_number = pos / PAGE_SIZE;
+
+    printf("Reading at position %d on page %d\n", pos, page_number);
+
+    if (mmu->page_table[page_number].flags & FLAG_RESERVED)
+    {
+        fprintf(stderr, "Cannot read to reserved page\n");
+        exit(1);
+    }
+
+    if (!(mmu->page_table[page_number].flags & FLAG_CREATED))
+    {
+        fprintf(stderr, "Page fault\n");
+        exit(1);
+    }
 }
 
 
