@@ -68,6 +68,25 @@ void MMU_init(MMU *mmu, char *file_name)
     mmu->page_table[1].frame_number = 1;
 }
 
+void MMU_print_page_table(MMU *mmu)
+{
+
+    printf("Page table:\n");
+    for (int i = 0; i < PAGE_TABLE_SIZE; i++)
+    {
+        printf("%.4d) %c%c%c%c%c%c%c >\t%d\n", i,
+               mmu->page_table[i].flags & FLAG_VALID ? 'V' : '-',
+               mmu->page_table[i].flags & FLAG_UNSWAPPABLE ? 'U' : '-',
+               mmu->page_table[i].flags & FLAG_READ_BIT ? 'R' : '-',
+               mmu->page_table[i].flags & FLAG_WRITE_BIT ? 'W' : '-',
+               mmu->page_table[i].flags & FLAG_SECOND_CHANCE_BIT ? 'S' : '-',
+               mmu->page_table[i].flags & FLAG_RESERVED ? 'X' : '-',
+               mmu->page_table[i].flags & FLAG_CREATED ? 'C' : '-',
+               mmu->page_table[i].frame_number);
+               
+    }
+}
+
 int find_page_to_swap_out(MMU *mmu){
     int page_to_swap_out = mmu->last_page_swapped_out;
      
@@ -115,9 +134,26 @@ void MMU_exception(MMU *mmu, int pos){
     else{
         
         int page_to_swap_out = find_page_to_swap_out(mmu);
-        //Controllare se la pagina è stata modificata in scrittura
-        //Se è stata modificata, scrivere la pagina sullo swap
+        int frame_to_swap_out = mmu->page_table[page_to_swap_out].frame_number;
 
+        // Scrivo la pagina su swap file se è stata modificata in scrittura
+        if (mmu->page_table[page_to_swap_out].flags & FLAG_WRITE_BIT){
+            printf("\tWriting page %d to swap file\n", page_to_swap_out);
+            fseek(mmu->swap_file, page_to_swap_out * PAGE_SIZE, SEEK_SET);
+            fwrite(&mmu->physical_memory[frame_to_swap_out * PAGE_SIZE], PAGE_SIZE, 1, mmu->swap_file);
+            fflush(mmu->swap_file);
+        }
+
+        if (mmu->page_table[page_to_swap_in].flags & FLAG_CREATED)
+        {
+            printf("\tReading page %d from swap file to frame %d\n", page_to_swap_in, frame_to_swap_out);
+            fseek(mmu->swap_file, page_to_swap_in * PAGE_SIZE, SEEK_SET);
+            fread(&mmu->physical_memory[frame_to_swap_out * PAGE_SIZE], PAGE_SIZE, 1, mmu->swap_file);
+        }
+
+        mmu->page_table[page_to_swap_in].frame_number = frame_to_swap_out;
+        mmu->page_table[page_to_swap_in].flags |= FLAG_VALID | FLAG_CREATED;
+        printf("\tSwapped out page %d from frame %d to allocate %d\n", page_to_swap_out, frame_to_swap_out, page_to_swap_in);
 
     }
 
@@ -160,22 +196,6 @@ char *MMU_readByte(MMU *mmu, int pos)
     
 }
 
-void MMU_print_page_table(MMU *mmu)
-{
-
-    printf("Page table:\n");
-    for (int i = 0; i < PAGE_TABLE_SIZE; i++)
-    {
-        printf("%.4d) %c%c%c%c >\t%d  '%c'\n", i,
-               mmu->page_table[i].flags & FLAG_VALID ? 'V' : '-',
-               mmu->page_table[i].flags & FLAG_UNSWAPPABLE ? 'U' : '-',
-               mmu->page_table[i].flags & FLAG_READ_BIT ? 'R' : '-',
-               mmu->page_table[i].flags & FLAG_WRITE_BIT ? 'W' : '-',
-               mmu->page_table[i].frame_number,
-               mmu->physical_memory[i]);
-               
-    }
-}
 
 
 void prova(){
