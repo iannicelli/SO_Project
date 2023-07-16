@@ -74,11 +74,23 @@ void MMU_init(MMU *mmu, char *file_name)
     mmu->page_table[1].frame_number = 1;
 }
 
-void MMU_print_page_table(MMU *mmu)
+void MMU_print_page_table_range(MMU *mmu, size_t min, size_t max)
 {
 
+    if (min > max)
+    {
+        fprintf(stderr, "min > max\n");
+        exit(1);
+    }
+
+    if (max > PAGE_TABLE_SIZE)
+    {
+        fprintf(stderr, "MMU_print_page_table_range max should be less or equal to PAGE_TABLE_SIZE (%d)\n", PAGE_TABLE_SIZE);
+        exit(1);
+    }
+
     printf("Page table:\n");
-    for (int i = 0; i < PAGE_TABLE_SIZE; i++)
+    for (int i = min; i < max; i++)
     {
         printf("%.4d) %c%c%c%c%c%c%c >\t%d\n", i,
                mmu->page_table[i].flags & FLAG_VALID ? 'V' : '-',
@@ -91,6 +103,11 @@ void MMU_print_page_table(MMU *mmu)
                mmu->page_table[i].frame_number);
                
     }
+}
+
+void MMU_print_page_table(MMU *mmu)
+{
+    MMU_print_page_table_range(mmu, 0, PAGE_TABLE_SIZE);
 }
 
 int find_page_to_swap_out(MMU *mmu){
@@ -220,6 +237,19 @@ char *MMU_readByte(MMU *mmu, int pos)
         fprintf(stderr, "Page fault\n");
         exit(1);
     }
+
+    if (!(mmu->page_table[page_number].flags & FLAG_VALID))
+    {
+        MMU_exception(mmu, pos);
+    }
+
+    int frame_number = mmu->page_table[page_number].frame_number;
+
+    mmu->page_table[page_number].flags |= FLAG_READ_BIT;
+    mmu->page_table[page_number].flags |= FLAG_SECOND_CHANCE_BIT;
+
+    return &mmu->physical_memory[frame_number * PAGE_SIZE + pos % PAGE_SIZE];
+
 }
 
 
@@ -235,7 +265,22 @@ void prova(){
         MMU_writeByte(&mmu, i, 'a');
     }
 
-    MMU_print_page_table(&mmu);
+    int page = 2;
+    while (true)
+    {
+        char b = getchar();
+        if (b == 'q')
+            break;
+        if (b == 't')
+            MMU_print_page_table(&mmu);
+        else
+        {
+            MMU_readByte(&mmu, page * PAGE_SIZE);
+
+            MMU_print_page_table_range(&mmu, page - 1, page + 2);
+            page++;
+        }
+    }
 
 }
 
