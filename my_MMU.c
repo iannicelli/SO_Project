@@ -4,6 +4,8 @@
 #include <errno.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <time.h>
+#include <windows.h>
 
 #define VIRTUAL_MEMORY_SIZE (1 << 24)  // 16 MB
 #define PHYSICAL_MEMORY_SIZE (1 << 20) // 1 MB
@@ -302,9 +304,70 @@ void prova(){
 
 }
 
+/*
+    Nel primo ciclo di allocazioni, dato che le pagine da allocare non sono mai state sul disco
+    basta semplicemente assegnare un frame libero alla pagina, senza accedere al disco; quindi le prestazioni saranno molto alte
+
+    Nel secondo caso invece si chiede di allocare delle nuove pagine, ma dato che tutti i frame sono già pieni,
+    e pieni di pagine con il bit di scrittura attivo, bisogna prima salvare il frame sul disco, e poi assegnare quel frame
+    alla nuova pagina; quindi le prestazioni saranno più basse (un accesso in scrittira per richiesta)
+
+    Nel terzo caso invce si accede nuovamente alle stesse pagine del primo caso; dato che queste non sono più in memoria,
+    bisogna prima salvare i frame correnti sul disco, per poi leggere dalla memoria i frame che ci servono;
+    quindi le prestazioni saranno molto basse (due accessi, uno in scrittura e uno in lettura per richiesta)
+*/
+void test1(void)
+{
+    MMU mmu;
+    MMU_init(&mmu, "swap_file_test1.bin");
+
+    LARGE_INTEGER frequency, start_time, end_time;
+    double elapsed_time;
+
+    printf("test1:\n");
+
+    // Questa funzione viene utilizzata per ottenere la frequenza del timer ad alta precisione del sistema.
+    QueryPerformanceFrequency(&frequency);
+    // Questa funzione viene utilizzata per ottenere il valore corrente del timer ad alta precisione.
+    QueryPerformanceCounter(&start_time);
+
+    for (size_t i = 2; i < 256; i++)
+    {
+        MMU_writeByte(&mmu, i * PAGE_SIZE, 'a');
+    }
+
+    QueryPerformanceCounter(&end_time);
+    elapsed_time = ((double)(end_time.QuadPart - start_time.QuadPart)) / frequency.QuadPart;
+    printf(" - %f - primo accesso con la memoria fisica vuota\n", elapsed_time);
+
+    QueryPerformanceCounter(&start_time);
+
+    for (size_t i = 256; i < 256 * 2 - 2; i++)
+    {
+        MMU_writeByte(&mmu, i * PAGE_SIZE, 'a');
+    }
+
+    QueryPerformanceCounter(&end_time);
+    elapsed_time = ((double)(end_time.QuadPart - start_time.QuadPart)) / frequency.QuadPart;
+    printf(" - %f - primo accesso con tutti i frame pieni\n", elapsed_time);
+
+    QueryPerformanceCounter(&start_time);
+
+    for (size_t i = 2; i < 256; i++)
+    {
+        MMU_writeByte(&mmu, i * PAGE_SIZE, 'a');
+    }
+
+    QueryPerformanceCounter(&end_time);
+    elapsed_time = ((double)(end_time.QuadPart - start_time.QuadPart)) / frequency.QuadPart;
+    printf(" - %f - secondo accesso con tutti i frame pieni\n", elapsed_time);
+
+    MMU_close(&mmu);
+}
+
 int main()
 {
-    //test
-    prova();
+    //prova();
+    test1();
     return 0;
 }
