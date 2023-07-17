@@ -43,12 +43,17 @@ bool is_print_enabled = false;
     if (is_print_enabled) \
         printf(__VA_ARGS__);
 
-void MMU_init(MMU *mmu, char *file_name)
-{
+FILE* open_swap_file(char *file_name){
+        
     FILE *swap_file = fopen(file_name, "w+");
     fseek(swap_file, VIRTUAL_MEMORY_SIZE - 1, SEEK_SET);
     fputc('\0', swap_file);
     fseek(swap_file, 0, SEEK_SET);
+}
+
+void MMU_init(MMU *mmu, char *file_name)
+{
+    FILE *swap_file = open_swap_file(file_name);
 
     char *physical_memory = calloc(PHYSICAL_MEMORY_SIZE, 1);
 
@@ -112,6 +117,9 @@ void MMU_print_page_table(MMU *mmu)
 
 int find_page_to_swap_out(MMU *mmu){
     int page_to_swap_out = mmu->last_page_swapped_out;
+
+    my_printf("Finding page to swap out, starting from %d\n", page_to_swap_out);
+
      
     while(1){
 
@@ -167,6 +175,9 @@ void MMU_exception(MMU *mmu, int pos){
             fflush(mmu->swap_file);
         }
 
+        mmu->page_table[page_to_swap_out].flags &= ~(FLAG_VALID | FLAG_WRITE_BIT | FLAG_READ_BIT);
+
+
         if (mmu->page_table[page_to_swap_in].flags & FLAG_CREATED)
         {
             my_printf("\tReading page %d from swap file to frame %d\n", page_to_swap_in, frame_to_swap_out);
@@ -192,7 +203,7 @@ void MMU_writeByte(MMU *mmu, int pos, char c)
     }
 
     int page_number = pos / PAGE_SIZE;
-    //printf("Writing %c at position %d on page %d\n", c, pos, page_number);
+    my_printf("Writing %c at position %d on page %d\n", c, pos, page_number);
 
     if (mmu->page_table[page_number].flags & FLAG_RESERVED)
     {
@@ -252,6 +263,12 @@ char *MMU_readByte(MMU *mmu, int pos)
 
 }
 
+void MMU_close(MMU *mmu)
+{
+    fclose(mmu->swap_file);
+    free(mmu->physical_memory);
+}
+
 
 
 void prova(){
@@ -270,6 +287,7 @@ void prova(){
     {
         char b = getchar();
         if (b == 'q')
+
             break;
         if (b == 't')
             MMU_print_page_table(&mmu);
