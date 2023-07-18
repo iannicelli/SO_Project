@@ -229,13 +229,14 @@ void MMU_writeByte(MMU *mmu, int pos, char c)
 
 char *MMU_readByte(MMU *mmu, int pos)
 {
+    int page_number = pos / PAGE_SIZE;
+
     if (pos >= VIRTUAL_MEMORY_SIZE)
     {
         fprintf(stderr, "Cannot write to position %d, out of bounds\n", pos);
         exit(1);
     }
 
-    int page_number = pos / PAGE_SIZE;
 
     my_printf("Reading at position %d on page %d\n", pos, page_number);
 
@@ -361,6 +362,45 @@ void test1(void)
     QueryPerformanceCounter(&end_time);
     elapsed_time = ((double)(end_time.QuadPart - start_time.QuadPart)) / frequency.QuadPart;
     printf(" - %f - secondo accesso con tutti i frame pieni\n", elapsed_time);
+
+    MMU_close(&mmu);
+}
+
+void test2(){
+    MMU mmu;
+    MMU_init(&mmu, "swap_file_test2.bin");
+
+    LARGE_INTEGER frequency, start_time, end_time;
+    double elapsed_time;;
+
+    printf("test2:\n");
+
+    // Questa funzione viene utilizzata per ottenere la frequenza del timer ad alta precisione del sistema.
+    QueryPerformanceFrequency(&frequency);
+    // Questa funzione viene utilizzata per ottenere il valore corrente del timer ad alta precisione.
+    QueryPerformanceCounter(&start_time);
+
+    for (size_t i = PAGE_SIZE * 2; i < VIRTUAL_MEMORY_SIZE; i++)
+    {
+        MMU_writeByte(&mmu, i, 'a');
+    }
+
+    QueryPerformanceCounter(&end_time);
+    elapsed_time = ((double)(end_time.QuadPart - start_time.QuadPart)) / frequency.QuadPart;
+    printf(" - %f - scrittura sequenziale\n", elapsed_time);
+
+    QueryPerformanceCounter(&start_time);
+
+    for (size_t i = PAGE_SIZE * 2; i < VIRTUAL_MEMORY_SIZE; i++)
+    {
+        int pos = (rand() % (VIRTUAL_MEMORY_SIZE - PAGE_SIZE * 2)) + PAGE_SIZE * 2;
+        MMU_writeByte(&mmu, pos, 'a');
+    }
+
+    QueryPerformanceCounter(&end_time);
+    elapsed_time = ((double)(end_time.QuadPart - start_time.QuadPart)) / frequency.QuadPart;
+    
+    printf(" - %f - scrittura random\n", elapsed_time);
 
     MMU_close(&mmu);
 }
