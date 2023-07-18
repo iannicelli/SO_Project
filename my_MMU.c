@@ -366,6 +366,15 @@ void test1(void)
     MMU_close(&mmu);
 }
 
+/*
+    
+    Nel primo caso si accede alle pagine in ordine, quindi non c'è bisogno di swappare pagine in memoria
+    ogni volta, in particolare solo ogni PAGE_SIZE accessi.
+
+    Nel secondo caso si accede alle pagine in modo random, quindi ogni volta che si accede a una pagina che non
+    è in memoria, bisogna swappare una pagina in memoria con una pagina sul disco, quindi le prestazioni saranno più basse
+*/
+
 void test2(){
     MMU mmu;
     MMU_init(&mmu, "swap_file_test2.bin");
@@ -385,7 +394,7 @@ void test2(){
         MMU_writeByte(&mmu, i, 'a');
     }
 
-    QueryPerformanceCounter(&end_time);
+    QueryPerformanceCounter(&end_time); 
     elapsed_time = ((double)(end_time.QuadPart - start_time.QuadPart)) / frequency.QuadPart;
     printf(" - %f - scrittura sequenziale\n", elapsed_time);
 
@@ -409,5 +418,6 @@ int main()
 {
     //prova();
     test1();
+    test2();
     return 0;
 }
