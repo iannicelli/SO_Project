@@ -150,6 +150,9 @@ int find_page_to_swap_out(MMU *mmu){
     
 }
 
+int write_count = 0;
+int read_count = 0;
+
 void MMU_exception(MMU *mmu, int pos){
     my_printf("Page fault at position %d\n", pos);
 
@@ -175,16 +178,19 @@ void MMU_exception(MMU *mmu, int pos){
             fseek(mmu->swap_file, page_to_swap_out * PAGE_SIZE, SEEK_SET);
             fwrite(&mmu->physical_memory[frame_to_swap_out * PAGE_SIZE], PAGE_SIZE, 1, mmu->swap_file);
             fflush(mmu->swap_file);
+            write_count++;
         }
 
         mmu->page_table[page_to_swap_out].flags &= ~(FLAG_VALID | FLAG_WRITE_BIT | FLAG_READ_BIT);
 
 
+        // Leggo la pagina da swap file se è la prima volta che la swappo in memoria
         if (mmu->page_table[page_to_swap_in].flags & FLAG_CREATED)
         {
             my_printf("\tReading page %d from swap file to frame %d\n", page_to_swap_in, frame_to_swap_out);
             fseek(mmu->swap_file, page_to_swap_in * PAGE_SIZE, SEEK_SET);
             fread(&mmu->physical_memory[frame_to_swap_out * PAGE_SIZE], PAGE_SIZE, 1, mmu->swap_file);
+            read_count++;
         }
 
         mmu->page_table[page_to_swap_in].frame_number = frame_to_swap_out;
@@ -380,7 +386,7 @@ void test2(){
     MMU_init(&mmu, "swap_file_test2.bin");
 
     LARGE_INTEGER frequency, start_time, end_time;
-    double elapsed_time;;
+    double elapsed_time;
 
     printf("test2:\n");
 
@@ -414,10 +420,76 @@ void test2(){
     MMU_close(&mmu);
 }
 
+/*
+    A parte la prima parte di preparazione in cui prealloco tutta la memoria virtuale e poi carico delle pagine
+    in lettura il test prevede:
+
+    la lettura sequenziale, la quale si, deve fare uno swap_in per ogni pagina, ma dato che le pagine poi non vengono
+    modificate, durante il loro swapout non c'è bisogno di scrivere la pagina sul disco.
+    Invece nel secondo caso le scritture modificano le pagine, quindi bisogna salvare i frame durante lo swap_out.
+    (le scritture sono 3840 perché le ultime 254 pagine caricate poi non vengono salvate ovviamente)
+*/
+
+void test3(void)
+{
+    MMU mmu;
+    MMU_init(&mmu, "swap_file_test3.bin");
+
+    LARGE_INTEGER frequency, start_time, end_time;
+    double elapsed_time;
+
+
+    printf("test3:\n");
+
+    
+    // preparo la memoria fisica
+    for (int i = 2; i < VIRTUAL_MEMORY_SIZE / PAGE_SIZE; i++)
+    {
+        MMU_writeByte(&mmu, i * PAGE_SIZE, 'a');
+    }
+    for (size_t i = 256; i < 256 * 2 - 2; i++)
+    {
+        MMU_readByte(&mmu, i * PAGE_SIZE);
+    }
+
+    read_count = 0;
+    write_count = 0;
+
+    // Questa funzione viene utilizzata per ottenere la frequenza del timer ad alta precisione del sistema.
+    QueryPerformanceFrequency(&frequency);
+    // Questa funzione viene utilizzata per ottenere il valore corrente del timer ad alta precisione.
+    QueryPerformanceCounter(&start_time);
+
+    for (int i = 2; i < VIRTUAL_MEMORY_SIZE / PAGE_SIZE; i++)
+    {
+        MMU_readByte(&mmu, i * PAGE_SIZE);
+    }
+
+    QueryPerformanceCounter(&end_time); 
+    elapsed_time = ((double)(end_time.QuadPart - start_time.QuadPart)) / frequency.QuadPart;
+    printf(" - %f - lettura sequenziale; letture:%d scritture:%d\n", elapsed_time, read_count, write_count);
+
+    read_count = 0;
+    write_count = 0;
+    QueryPerformanceCounter(&start_time);
+
+    for (int i = 2; i < VIRTUAL_MEMORY_SIZE / PAGE_SIZE; i++)
+    {
+        MMU_writeByte(&mmu, i * PAGE_SIZE, 'a');
+    }
+
+    QueryPerformanceCounter(&end_time); 
+    elapsed_time = ((double)(end_time.QuadPart - start_time.QuadPart)) / frequency.QuadPart;
+    printf(" - %f - scrittura sequenziale; letture:%d scritture:%d\n", elapsed_time, read_count, write_count);
+
+    MMU_close(&mmu);
+}
+
 int main()
 {
     //prova();
     test1();
     test2();
+    test3();
     return 0;
 }
