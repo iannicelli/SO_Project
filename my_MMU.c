@@ -4,7 +4,6 @@
 #include <errno.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <time.h>
 #include <windows.h>
 
 #define VIRTUAL_MEMORY_SIZE (1 << 24)  // 16 MB
@@ -291,6 +290,7 @@ void prova(){
         MMU_writeByte(&mmu, i, 'a');
     }
 
+    printf("Premi t per stampare la tabella delle pagine, q per uscire, o un altro tasto per continuare\n");
     int page = 2;
     while (true)
     {
@@ -319,7 +319,7 @@ void prova(){
     e pieni di pagine con il bit di scrittura attivo, bisogna prima salvare il frame sul disco, e poi assegnare quel frame
     alla nuova pagina; quindi le prestazioni saranno più basse (un accesso in scrittira per richiesta)
 
-    Nel terzo caso invce si accede nuovamente alle stesse pagine del primo caso; dato che queste non sono più in memoria,
+    Nel terzo caso invece si accede nuovamente alle stesse pagine del primo caso; dato che queste non sono più in memoria,
     bisogna prima salvare i frame correnti sul disco, per poi leggere dalla memoria i frame che ci servono;
     quindi le prestazioni saranno molto basse (due accessi, uno in scrittura e uno in lettura per richiesta)
 */
@@ -427,7 +427,7 @@ void test2(){
     la lettura sequenziale, la quale si, deve fare uno swap_in per ogni pagina, ma dato che le pagine poi non vengono
     modificate, durante il loro swapout non c'è bisogno di scrivere la pagina sul disco.
     Invece nel secondo caso le scritture modificano le pagine, quindi bisogna salvare i frame durante lo swap_out.
-    (le scritture sono 3840 perché le ultime 254 pagine caricate poi non vengono salvate ovviamente)
+    (le scritture sono 3840 perché le ultime 254 pagine caricate poi non vengono salvate)
 */
 
 void test3(void)
