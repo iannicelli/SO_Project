@@ -53,6 +53,7 @@ FILE* open_swap_file(const char *file_name){
     fseek(swap_file, VIRTUAL_MEMORY_SIZE - 1, SEEK_SET);
     fputc('\0', swap_file);
     fseek(swap_file, 0, SEEK_SET);
+    return swap_file;
 }
 
 void MMU_init(MMU *mmu, const char *file_name)
