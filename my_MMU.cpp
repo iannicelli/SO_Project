@@ -4,7 +4,10 @@
 #include <errno.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <windows.h>
+#include <sys/time.h>
+#include "chrono.h"
+
+int gettimeofday(struct timeval *tv, struct timezone *tz);
 
 #define VIRTUAL_MEMORY_SIZE (1 << 24)  // 16 MB
 #define PHYSICAL_MEMORY_SIZE (1 << 20) // 1 MB
@@ -44,7 +47,7 @@ bool is_print_enabled = false;
     if (is_print_enabled) \
         printf(__VA_ARGS__);
 
-FILE* open_swap_file(char *file_name){
+FILE* open_swap_file(const char *file_name){
         
     FILE *swap_file = fopen(file_name, "w+");
     fseek(swap_file, VIRTUAL_MEMORY_SIZE - 1, SEEK_SET);
@@ -52,11 +55,11 @@ FILE* open_swap_file(char *file_name){
     fseek(swap_file, 0, SEEK_SET);
 }
 
-void MMU_init(MMU *mmu, char *file_name)
+void MMU_init(MMU *mmu, const char *file_name)
 {
     FILE *swap_file = open_swap_file(file_name);
 
-    char *physical_memory = calloc(PHYSICAL_MEMORY_SIZE, 1);
+    char *physical_memory = (char*) calloc(PHYSICAL_MEMORY_SIZE, 1);
 
     mmu->physical_memory = physical_memory;
     mmu->swap_file = swap_file;
@@ -96,9 +99,9 @@ void MMU_print_page_table_range(MMU *mmu, size_t min, size_t max)
     }
 
     printf("Page table:\n");
-    for (int i = min; i < max; i++)
+    for (size_t i = min; i < max; i++)
     {
-        printf("%.4d) %c%c%c%c%c%c%c >\t%d\n", i,
+        printf("%.4ld) %c%c%c%c%c%c%c >\t%d\n", i,
                mmu->page_table[i].flags & FLAG_VALID ? 'V' : '-',
                mmu->page_table[i].flags & FLAG_UNSWAPPABLE ? 'U' : '-',
                mmu->page_table[i].flags & FLAG_READ_BIT ? 'R' : '-',
@@ -328,46 +331,37 @@ void test1(void)
     MMU mmu;
     MMU_init(&mmu, "swap_file_test1.bin");
 
-    LARGE_INTEGER frequency, start_time, end_time;
-    double elapsed_time;
 
     printf("test1:\n");
 
-    // Questa funzione viene utilizzata per ottenere la frequenza del timer ad alta precisione del sistema.
-    QueryPerformanceFrequency(&frequency);
-    // Questa funzione viene utilizzata per ottenere il valore corrente del timer ad alta precisione.
-    QueryPerformanceCounter(&start_time);
-
+    Chrono write1_timer("mmap_write_action_1");
     for (size_t i = 2; i < 256; i++)
     {
+        Chrono::Event e (write1_timer);
         MMU_writeByte(&mmu, i * PAGE_SIZE, 'a');
+        
     }
-
-    QueryPerformanceCounter(&end_time);
-    elapsed_time = ((double)(end_time.QuadPart - start_time.QuadPart)) / frequency.QuadPart;
-    printf(" - %f - primo accesso con la memoria fisica vuota\n", elapsed_time);
-
-    QueryPerformanceCounter(&start_time);
-
+    write1_timer.print(cerr);
+    printf("Primo accesso con la memoria fisica vuota\n");
+    
+    Chrono write2_timer("mmap_write_action_2");
     for (size_t i = 256; i < 256 * 2 - 2; i++)
     {
-        MMU_writeByte(&mmu, i * PAGE_SIZE, 'a');
+      Chrono::Event e (write2_timer);
+      MMU_writeByte(&mmu, i * PAGE_SIZE, 'a');
     }
+    write2_timer.print(cerr);
+    printf("Primo accesso con tutti i frame pieni\n");
 
-    QueryPerformanceCounter(&end_time);
-    elapsed_time = ((double)(end_time.QuadPart - start_time.QuadPart)) / frequency.QuadPart;
-    printf(" - %f - primo accesso con tutti i frame pieni\n", elapsed_time);
 
-    QueryPerformanceCounter(&start_time);
-
+    Chrono write3_timer("mmap_write_action_3");
     for (size_t i = 2; i < 256; i++)
     {
-        MMU_writeByte(&mmu, i * PAGE_SIZE, 'a');
+      Chrono::Event e (write3_timer);
+      MMU_writeByte(&mmu, i * PAGE_SIZE, 'a');
     }
-
-    QueryPerformanceCounter(&end_time);
-    elapsed_time = ((double)(end_time.QuadPart - start_time.QuadPart)) / frequency.QuadPart;
-    printf(" - %f - secondo accesso con tutti i frame pieni\n", elapsed_time);
+    write2_timer.print(cerr);
+    printf("Secondo accesso con tutti i frame pieni\n");
 
     MMU_close(&mmu);
 }
@@ -385,37 +379,31 @@ void test2(){
     MMU mmu;
     MMU_init(&mmu, "swap_file_test2.bin");
 
-    LARGE_INTEGER frequency, start_time, end_time;
-    double elapsed_time;
-
     printf("test2:\n");
 
-    // Questa funzione viene utilizzata per ottenere la frequenza del timer ad alta precisione del sistema.
-    QueryPerformanceFrequency(&frequency);
-    // Questa funzione viene utilizzata per ottenere il valore corrente del timer ad alta precisione.
-    QueryPerformanceCounter(&start_time);
-
+    Chrono write1_timer("mmap_write_action_1");
+    
     for (size_t i = PAGE_SIZE * 2; i < VIRTUAL_MEMORY_SIZE; i++)
     {
+        Chrono::Event e (write1_timer);
         MMU_writeByte(&mmu, i, 'a');
     }
 
-    QueryPerformanceCounter(&end_time); 
-    elapsed_time = ((double)(end_time.QuadPart - start_time.QuadPart)) / frequency.QuadPart;
-    printf(" - %f - scrittura sequenziale\n", elapsed_time);
+    write1_timer.print(cerr);
+    printf("Scrittura sequenziale\n");
+    
 
-    QueryPerformanceCounter(&start_time);
+    Chrono write2_timer("mmap_write_action_2");
 
     for (size_t i = PAGE_SIZE * 2; i < VIRTUAL_MEMORY_SIZE; i++)
     {
+        Chrono::Event e (write2_timer);
         int pos = (rand() % (VIRTUAL_MEMORY_SIZE - PAGE_SIZE * 2)) + PAGE_SIZE * 2;
         MMU_writeByte(&mmu, pos, 'a');
     }
 
-    QueryPerformanceCounter(&end_time);
-    elapsed_time = ((double)(end_time.QuadPart - start_time.QuadPart)) / frequency.QuadPart;
-    
-    printf(" - %f - scrittura random\n", elapsed_time);
+    write2_timer.print(cerr);
+    printf("Scrittura random\n");
 
     MMU_close(&mmu);
 }
@@ -435,13 +423,8 @@ void test3(void)
     MMU mmu;
     MMU_init(&mmu, "swap_file_test3.bin");
 
-    LARGE_INTEGER frequency, start_time, end_time;
-    double elapsed_time;
-
-
     printf("test3:\n");
 
-    
     // preparo la memoria fisica
     for (int i = 2; i < VIRTUAL_MEMORY_SIZE / PAGE_SIZE; i++)
     {
@@ -455,36 +438,31 @@ void test3(void)
     read_count = 0;
     write_count = 0;
 
-    // Questa funzione viene utilizzata per ottenere la frequenza del timer ad alta precisione del sistema.
-    QueryPerformanceFrequency(&frequency);
-    // Questa funzione viene utilizzata per ottenere il valore corrente del timer ad alta precisione.
-    QueryPerformanceCounter(&start_time);
-
+    Chrono read_timer("mmap_read_action");
     for (int i = 2; i < VIRTUAL_MEMORY_SIZE / PAGE_SIZE; i++)
     {
+        Chrono:: Event e (read_timer);
         MMU_readByte(&mmu, i * PAGE_SIZE);
     }
 
-    QueryPerformanceCounter(&end_time); 
-    elapsed_time = ((double)(end_time.QuadPart - start_time.QuadPart)) / frequency.QuadPart;
-    printf(" - %f - lettura sequenziale; letture:%d scritture:%d\n", elapsed_time, read_count, write_count);
+    read_timer.print(cerr);
+    printf("Lettura sequenziale; letture:%d scritture:%d\n", read_count, write_count);
 
     read_count = 0;
     write_count = 0;
-    QueryPerformanceCounter(&start_time);
+    Chrono write_timer("mmap_write_action");
 
     for (int i = 2; i < VIRTUAL_MEMORY_SIZE / PAGE_SIZE; i++)
     {
+        Chrono:: Event e (write_timer);
         MMU_writeByte(&mmu, i * PAGE_SIZE, 'a');
     }
 
-    QueryPerformanceCounter(&end_time); 
-    elapsed_time = ((double)(end_time.QuadPart - start_time.QuadPart)) / frequency.QuadPart;
-    printf(" - %f - scrittura sequenziale; letture:%d scritture:%d\n", elapsed_time, read_count, write_count);
+    write_timer.print(cerr);
+    printf("Scrittura sequenziale; letture:%d scritture:%d\n", read_count, write_count);
 
     MMU_close(&mmu);
 }
-
 int main()
 {
     //prova();
